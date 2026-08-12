@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Weather Intelligence</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                         Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #172033;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        h1 {
+            margin-bottom: 8px;
+            font-size: 36px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        .subtitle {
+            color: #667085;
+            margin-bottom: 36px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #d0d5dd;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        button {
+            margin-top: 14px;
+            padding: 11px 18px;
+            border: none;
+            border-radius: 8px;
+            background: #1677ff;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .status {
+            margin-top: 14px;
+            color: #667085;
+        }
+
+        .error {
+            color: #b42318;
+        }
+
+        .result {
+            border-top: 1px solid #eaecf0;
+            padding: 20px 0;
+        }
+
+        .result:first-child {
+            border-top: none;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 8px;
+        }
+
+        .headline {
+            font-weight: 700;
+        }
+
+        .location {
+            color: #667085;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .similarity {
+            white-space: nowrap;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .chunk {
+            color: #475467;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .empty {
+            color: #667085;
+            padding: 20px 0;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Weather Intelligence</h1>
+
+    <div class="subtitle">
+        Search weather alerts and forecast discussions using semantic search.
+    </div>
+
+
+    <div class="card">
+
+        <h2>Sync Weather</h2>
+
+        <label for="location">
+            Location
+        </label>
+
+        <input
+            id="location"
+            type="text"
+            value="Chicago, IL"
+            placeholder="e.g. Chicago, IL"
+        >
+
+        <button
+            id="syncButton"
+            onclick="syncWeather()"
+        >
+            Sync Weather
+        </button>
+
+        <div id="syncStatus" class="status"></div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>Ask About the Weather</h2>
+
+        <label for="query">
+            Question
+        </label>
+
+        <input
+            id="query"
+            type="text"
+            placeholder="e.g. risk of flooding near rivers"
+            onkeydown="handleSearchKey(event)"
+        >
+
+        <button
+            id="searchButton"
+            onclick="searchWeather()"
+        >
+            Search
+        </button>
+
+        <div id="searchStatus" class="status"></div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>Search Results</h2>
+
+        <div id="results">
+            <div class="empty">
+                Enter a question above to search the weather knowledge base.
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+async function syncWeather() {
+
+    const location = document
+        .getElementById("location")
+        .value
+        .trim();
+
+    const button = document.getElementById("syncButton");
+    const status = document.getElementById("syncStatus");
+
+    if (!location) {
+        status.textContent = "Please enter a location.";
+        return;
+    }
+
+    button.disabled = true;
+    status.className = "status";
+    status.textContent = "Syncing weather data...";
+
+    try {
+
+        const response = await fetch("/weather/sync", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                locations: [location],
+                limit: 50
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Sync failed.");
+        }
+
+        if (data.errors && data.errors.length > 0) {
+            status.textContent =
+                `Synced ${data.synced} document(s), but some errors occurred.`;
+            status.className = "status error";
+        } else {
+            status.textContent =
+                `Successfully synced ${data.synced} document(s).`;
+        }
+
+    } catch (error) {
+
+        status.textContent = error.message;
+        status.className = "status error";
+
+    } finally {
+
+        button.disabled = false;
+    }
+}
+
+
+async function searchWeather() {
+
+    const query = document
+        .getElementById("query")
+        .value
+        .trim();
+
+    const button = document.getElementById("searchButton");
+    const status = document.getElementById("searchStatus");
+    const resultsContainer = document.getElementById("results");
+
+    if (!query) {
+        status.textContent = "Please enter a question.";
+        return;
+    }
+
+    button.disabled = true;
+    status.className = "status";
+    status.textContent = "Searching...";
+
+    resultsContainer.innerHTML = "";
+
+    try {
+
+        const response = await fetch("/weather/search", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                query: query,
+                top_k: 5
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Search failed.");
+        }
+
+        status.textContent =
+            `Found ${data.results.length} result(s).`;
+
+        if (data.results.length === 0) {
+
+            resultsContainer.innerHTML = `
+                <div class="empty">
+                    No matching weather information found.
+                </div>
+            `;
+
+            return;
+        }
+
+        resultsContainer.innerHTML = data.results.map(result => `
+
+            <div class="result">
+
+                <div class="result-header">
+
+                    <div>
+                        <div class="headline">
+                            ${escapeHtml(
+                                result.headline || "Weather information"
+                            )}
+                        </div>
+
+                        <div class="location">
+                            ${escapeHtml(result.location || "")}
+                        </div>
+                    </div>
+
+                    <div class="similarity">
+                        Similarity:
+                        ${result.similarity.toFixed(3)}
+                    </div>
+
+                </div>
+
+                <div class="chunk">
+                    ${escapeHtml(result.chunk_text || "")}
+                </div>
+
+            </div>
+
+        `).join("");
+
+    } catch (error) {
+
+        status.textContent = error.message;
+        status.className = "status error";
+
+    } finally {
+
+        button.disabled = false;
+    }
+}
+
+
+function handleSearchKey(event) {
+
+    if (event.key === "Enter") {
+        searchWeather();
+    }
+}
+
+
+function escapeHtml(value) {
+
+    const div = document.createElement("div");
+
+    div.textContent = value;
+
+    return div.innerHTML;
+}
+
+</script>
+
+</body>
+</html>
