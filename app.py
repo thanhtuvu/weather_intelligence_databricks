@@ -5,10 +5,8 @@ from psycopg_pool import ConnectionPool
 from databricks import sdk
 from weather import WeatherClient, upsert_documents
 import lakebase
-from embeddings import (
-    embed_unembedded_documents,
-    get_embedding_model,
-)
+from embeddings import embed_unembedded_documents
+from search import search_weather_documents
 # --------------------------------------------------
 # Databricks / Lakebase connection
 # --------------------------------------------------
@@ -66,10 +64,10 @@ def handle_exception(exc):
     return jsonify({
         "error": str(exc)
     }), 500
+
 # --------------------------------------------------
 # UI
 # --------------------------------------------------
-
 @app.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
@@ -77,12 +75,13 @@ def index():
 # --------------------------------------------------
 # Health
 # --------------------------------------------------
-
-@app.route("/health", methods=["GET"])
+@app.route("/health")
 def health():
-    return jsonify({
-        "status": "ok"
-    })
+    return {
+        "status": "ok",
+        "pgendpoint_exists": bool(os.environ.get("PGENDPOINT")),
+        "pgendpoint": os.environ.get("PGENDPOINT"),
+    }
 
 # --------------------------------------------------
 # Weather sync
@@ -90,7 +89,7 @@ def health():
 
 @app.route("/weather/sync", methods=["POST"])
 def sync_weather():
-
+    #Flask Endpoint:
     data = request.get_json(silent=True) or {}
     locations = data.get("locations")
     limit = data.get("limit", 50)
@@ -111,6 +110,7 @@ def sync_weather():
     total_synced = 0
     errors = []
 
+    #From weather.py:
     for location in locations:
         try:
             documents = weather_client.fetch_location_input(
@@ -151,6 +151,7 @@ def sync_weather():
 
 @app.route("/weather/search", methods=["POST"])
 def search_weather():
+    #Flask Endpoint:
     data = request.get_json(silent=True) or {}
     query = data.get("query")
     top_k = data.get("top_k", 5)
@@ -168,48 +169,18 @@ def search_weather():
         }), 400
 
     top_k = max(1, min(top_k, 20))
-    query_embedding = get_embedding_model().encode(
-        query.strip()
+
+    # From search.py
+    results = search_weather_documents(
+        query=query,
+        get_connection=lakebase.get_connection,
+        top_k=top_k,
     )
-
-    vector = "[" + ",".join(
-        str(float(value)) for value in query_embedding
-    ) + "]"
-
-# Search connection is using the App's Lakebase connection
-    with lakebase.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    d.location,
-                    d.headline,
-                    e.chunk_text,
-                    1 - (e.embedding <=> %s::vector) AS similarity
-                FROM weather_embeddings e
-                JOIN weather_documents d
-                    ON d.id = e.document_id
-                ORDER BY e.embedding <=> %s::vector
-                LIMIT %s;
-                """,
-                (vector, vector, top_k),
-            )
-
-            results = cur.fetchall()
 
     return jsonify({
         "query": query,
-        "results": [
-            {
-                "location": row["location"],
-                "headline": row["headline"],
-                "chunk_text": row["chunk_text"],
-                "similarity": float(row["similarity"]),
-            }
-            for row in results
-        ],
+        "results": results,
     })
-
 
 # --------------------------------------------------
 # Run

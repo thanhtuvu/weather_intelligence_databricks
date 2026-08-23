@@ -296,3 +296,8 @@ Planned improvements include:
 5. Improve chunking strategy.
 6. Add citations/source references to generated answers.
 7. Improve retrieval evaluation and relevance testing.
+
+##9. Grant access
+GRANT ALL PRIVILEGES ON TABLE weather_embeddings TO "dbf9f891-2ab9-499e-8376-2867b405bb96";
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO "dbf9f891-2ab9-499e-8376-2867b405bb96";

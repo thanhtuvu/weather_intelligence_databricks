@@ -54,7 +54,6 @@ def chunk_text(
             break
     return chunks
 
-
 def embed_unembedded_documents(get_connection):
     # For incremental load of the embeddings
     with get_connection() as conn:

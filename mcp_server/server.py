@@ -2,6 +2,14 @@ from datetime import datetime
 from fastmcp import FastMCP
 from weather_api import WeatherAPI
 
+import sys
+from pathlib import Path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+
+from search import search_weather_documents
+from lakebase import get_connection
+
 mcp = FastMCP("Weather MCP Server")
 weather_api = WeatherAPI()
 
@@ -86,6 +94,18 @@ def get_forecast(location: str, days: int = 3) -> list:
 
     return _weather_forecast(location, days)
 
+@mcp.tool()
+def search_weather(query: str, top_k: int = 5) -> list:
+    """Search stored weather documents using semantic similarity."""
+
+    if top_k < 1 or top_k > 20:
+        raise ValueError("top_k must be between 1 and 20")
+
+    return search_weather_documents(
+        query=query,
+        get_connection=get_connection,
+        top_k=top_k,
+    )
 
 @mcp.tool()
 def predict_umbrella_needed(location: str, date: str) -> dict:

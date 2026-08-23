@@ -1,4 +1,3 @@
-import base64
 import os
 from contextlib import contextmanager
 
@@ -9,30 +8,32 @@ from databricks.sdk import WorkspaceClient
 
 _w = WorkspaceClient()
 
+_PGHOST = os.environ["PGHOST"]
+_PGPORT = os.environ.get("PGPORT", "5432")
+_PGDATABASE = os.environ.get("PGDATABASE", "databricks_postgres")
+_PGSSLMODE = os.environ.get("PGSSLMODE", "require")
+_PGUSER = os.environ["PGUSER"]
 
-_SCOPE = os.environ.get("LAKEBASE_SECRET_SCOPE", "database")
-_KEY = os.environ.get("LAKEBASE_SECRET_KEY", "lakebase-url")
+_ENDPOINT = os.environ["LAKEBASE_ENDPOINT"]
 
 
-def _lakebase_url() -> str:
-    secret = _w.secrets.get_secret(
-        scope=_SCOPE,
-        key=_KEY,
+def _fresh_token() -> str:
+    cred = _w.postgres.generate_database_credential(
+        endpoint=_ENDPOINT
     )
-    return base64.b64decode(secret.value).decode("utf-8")
+    return cred.token
 
 
 @contextmanager
 def get_connection():
-    """
-    1. Gets the Lakebase connection URL from Databricks Secrets.
-    2. Creates a new psycopg connection.
-    3. Returns that connection.
-    4. Closes it when the context exits.
-    """
     conn = psycopg.connect(
-        _lakebase_url(),
-        row_factory=dict_row,
+        host=_PGHOST
+        ,port=_PGPORT
+        ,dbname=_PGDATABASE
+        ,user=_PGUSER
+        ,password=_fresh_token()
+        ,sslmode=_PGSSLMODE
+        ,row_factory=dict_row
     )
 
     try:
@@ -42,8 +43,8 @@ def get_connection():
 
 
 def run_query(
-    sql: str,
-    params: tuple | dict | None = None,
+    sql: str
+    ,params: tuple | dict | None = None
 ) -> list[dict]:
 
     with get_connection() as conn:
@@ -53,8 +54,8 @@ def run_query(
 
 
 def run_write(
-    sql: str,
-    params: tuple | dict | None = None,
+    sql: str
+    ,params: tuple | dict | None = None
 ) -> int:
 
     with get_connection() as conn:

@@ -10,11 +10,11 @@ CREATE TABLE IF NOT EXISTS weather_documents (
     synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_weather_documents_location
-    ON weather_documents (location);
+-- CREATE INDEX IF NOT EXISTS idx_weather_documents_location
+--     ON weather_documents (location);
 
-CREATE INDEX IF NOT EXISTS idx_weather_documents_source_type
-    ON weather_documents (source_type);
+-- CREATE INDEX IF NOT EXISTS idx_weather_documents_source_type
+--     ON weather_documents (source_type);
 
-CREATE INDEX IF NOT EXISTS idx_weather_documents_issued_at
-    ON weather_documents (issued_at);
+-- CREATE INDEX IF NOT EXISTS idx_weather_documents_issued_at
+--     ON weather_documents (issued_at);
