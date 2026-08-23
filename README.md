@@ -301,3 +301,6 @@ Planned improvements include:
 GRANT ALL PRIVILEGES ON TABLE weather_embeddings TO "dbf9f891-2ab9-499e-8376-2867b405bb96";
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO "dbf9f891-2ab9-499e-8376-2867b405bb96";
+
+##10. Notes as I go:
+1. Databricks recognizes an app prefixed with `mcp-` as a custom MCP server and lists it under the `Agents > MCP Servers` tab — it doesn't provision a separate MCP server object, just reflects the app's own `/mcp` endpoint. This custom MCP server can't also be deleted without deleting the app. 
