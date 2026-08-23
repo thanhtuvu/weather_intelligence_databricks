@@ -178,8 +178,22 @@ def predict_umbrella_needed(location: str, date: str) -> dict:
     )
 
 if __name__ == "__main__":
-    mcp.run(
-        transport="streamable-http",
-        host="0.0.0.0",
-        port=8000,
+    import uvicorn
+    from starlette.applications import Starlette
+    from starlette.routing import Mount
+
+    mcp_app = mcp.http_app(path="/mcp")
+
+    app = Starlette(
+        routes=[
+            Mount("/", app=mcp_app)
+            ,Mount("/mcp", app=mcp_app)
+        ]
+        ,lifespan=mcp_app.lifespan
+    )
+
+    uvicorn.run(
+        app
+        ,host="0.0.0.0"
+        ,port=8000
     )
