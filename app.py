@@ -3,10 +3,14 @@ import os
 import psycopg
 from psycopg_pool import ConnectionPool
 from databricks import sdk
-from weather import WeatherClient, upsert_documents
+
+from weather import WeatherClient, upsert_documents as upsert_weather_documents
+from destination import fetch_destinations, upsert_documents as upsert_destination_documents
+
 import lakebase
 from embeddings import embed_unembedded_documents
-from search import search_weather_documents
+from search import search_weather_documents, search_destination_documents
+
 # --------------------------------------------------
 # Databricks / Lakebase connection
 # --------------------------------------------------
@@ -83,10 +87,13 @@ def health():
         "pgendpoint": os.environ.get("PGENDPOINT"),
     }
 
-# --------------------------------------------------
-# Weather sync
-# --------------------------------------------------
+# ======================================================
+# WEATHER
+# ======================================================
 
+# -----------------------------
+# Weather sync/upsert/embedd
+# -----------------------------
 @app.route("/weather/sync", methods=["POST"])
 def sync_weather():
     #Flask Endpoint:
@@ -95,48 +102,29 @@ def sync_weather():
     limit = data.get("limit", 50)
 
     if not isinstance(locations, list) or not locations:
-        return jsonify({
-            "error": "locations must be a non-empty list"
-        }), 400
-
-    try:
-        limit = int(limit)
-    except (TypeError, ValueError):
-        return jsonify({
-            "error": "limit must be an integer"
-        }), 400
+        return jsonify({"error": "locations must be a non-empty list"}), 400
 
     limit = max(1, min(limit, 50))
     total_synced = 0
     errors = []
 
-    #From weather.py:
     for location in locations:
         try:
-            documents = weather_client.fetch_location_input(
-                location
-            )
+            documents = weather_client.fetch_location_input(location)
             documents = documents[:limit]
-            synced = upsert_documents(documents)
-            total_synced += synced
-
+            total_synced += upsert_weather_documents(documents)
         except Exception as exc:
             errors.append({
                 "location": location,
-                "error": str(exc),
+                "error": str(exc)
             })
 
     embedded = 0
 
     try:
-        embedded = embed_unembedded_documents(
-            lakebase.get_connection
-        )
-
+        embedded = embed_unembedded_documents(lakebase.get_connection)
     except Exception as exc:
-        errors.append({
-            "embedding": str(exc),
-        })
+        errors.append({"embedding": str(exc)})
 
     return jsonify({
         "synced": total_synced,
@@ -145,10 +133,9 @@ def sync_weather():
         "errors": errors,
     })
 
-# --------------------------------------------------
+# --------------------------------
 # Weather semantic search
-# --------------------------------------------------
-
+# --------------------------------
 @app.route("/weather/search", methods=["POST"])
 def search_weather():
     #Flask Endpoint:
@@ -157,30 +144,90 @@ def search_weather():
     top_k = data.get("top_k", 5)
 
     if not isinstance(query, str) or not query.strip():
-        return jsonify({
-            "error": "query must be a non-empty string"
-        }), 400
-
-    try:
-        top_k = int(top_k)
-    except (TypeError, ValueError):
-        return jsonify({
-            "error": "top_k must be an integer"
-        }), 400
+        return jsonify({"error": "query must be a non-empty string"}), 400
 
     top_k = max(1, min(top_k, 20))
-
-    # From search.py
     results = search_weather_documents(
         query=query,
         get_connection=lakebase.get_connection,
-        top_k=top_k,
+        top_k=top_k
     )
 
     return jsonify({
         "query": query,
-        "results": results,
+        "results": results
     })
+
+# ======================================================
+# DESTINATIONS
+# ======================================================
+
+# ---------------------------------
+# Destination sync/upsert/embedd
+# ---------------------------------
+
+@app.route("/destinations/sync", methods=["POST"])
+def sync_destinations():
+    data = request.get_json(silent=True) or {}
+    locations = data.get("locations")
+    limit = data.get("limit", 50)
+
+    if not isinstance(locations, list) or not locations:
+        return jsonify({"error": "locations must be a non-empty list"}), 400
+
+    limit = max(1, min(int(limit), 50))
+    total_synced = 0
+    errors = []
+
+    for location in locations:
+        try:
+            documents = fetch_destinations(
+                location
+                ,api_key=os.environ["GEOAPIFY_API_KEY"]
+                ,limit=limit
+            )
+            total_synced += upsert_destination_documents(documents)
+        except Exception as exc:
+            errors.append({"location": location, "error": str(exc)})
+
+    embedded = 0
+    try:
+        embedded = embed_unembedded_documents(
+            lakebase.get_connection
+            ,documents_table="destination_documents"
+            ,embeddings_table="destination_embeddings"
+        )
+    except Exception as exc:
+        errors.append({"embedding": str(exc)})
+
+    return jsonify({
+        "synced": total_synced
+        ,"embedded": embedded
+        ,"locations_requested": len(locations)
+        ,"errors": errors
+    })
+
+# --------------------------------
+# Destination semantic search
+# --------------------------------
+
+@app.route("/destinations/search", methods=["POST"])
+def search_destinations():
+    data = request.get_json(silent=True) or {}
+    query = data.get("query")
+    top_k = max(1, min(int(data.get("top_k", 5)), 20))
+
+    if not isinstance(query, str) or not query.strip():
+        return jsonify({"error": "query must be a non-empty string"}), 400
+
+    # NOT BUILT YET — see note below
+    results = search_destination_documents(
+        query=query
+        ,get_connection=lakebase.get_connection
+        ,top_k=top_k
+    )
+
+    return jsonify({"query": query, "results": results})
 
 # --------------------------------------------------
 # Run

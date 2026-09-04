@@ -301,3 +301,21 @@ Planned improvements include:
 GRANT ALL PRIVILEGES ON TABLE weather_embeddings TO "dbf9f891-2ab9-499e-8376-2867b405bb96";
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO "dbf9f891-2ab9-499e-8376-2867b405bb96";
+
+##10. Notes as I go:
+1. Databricks recognizes an app prefixed with `mcp-` as a custom MCP server and lists it under the `Agents > MCP Servers` tab — it doesn't provision a separate MCP server object, just reflects the app's own `/mcp` endpoint. This custom MCP server can't also be deleted without deleting the app. 
+
+2. Why need indexing while type `VECTOR(384)` will do semantic search just fine: `VECTOR(384)` just defines what is stored — it doesn't speed up how you search it.
+
+   Without an index, ORDER BY embedding <=> query_vector LIMIT k does a full sequential scan: compute distance to every single row, sort, take top k. Exact, but O(n) — fine at a few thousand rows, painful at hundreds of thousands.
+
+   The hnsw index builds an approximate-nearest-neighbor graph so lookups skip most of the table and return in roughly O(log n). Tradeoff: it's approximate — you can miss a true top-k neighbor occasionally — but at the corpus sizes you're working with (weather docs, attractions per city), that tradeoff is basically free and the speedup is real.
+
+   Same reason a database index on any column exists — the column stores the data, the index makes WHERE/ORDER BY on it fast.
+
+3. Plain B-tree composite index, not vector-related: to speed up the query by id, other columns in a table:
+```CREATE INDEX IF NOT EXISTS idx_itinerary_items_itinerary ON itinerary_items (itinerary_id, day_number, sequence_order);```
+
+   Without it, that's a sequential scan + sort every time you render an itinerary. With it, Postgres jumps straight to the matching rows already in the right order — no separate sort step needed since the index itself is stored in (itinerary_id, day_number, sequence_order) order.
+
+   Column order matters: itinerary_id first because that's the equality filter (WHERE), the rest after because that's the sort order you need per itinerary.

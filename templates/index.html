@@ -136,10 +136,10 @@
 
 <div class="container">
 
-    <h1>Weather Intelligence</h1>
+    <h1>Itinerary Planner</h1>
 
     <div class="subtitle">
-        Search weather alerts and forecast discussions using semantic search.
+        Build an itinerary that fits your preference and weather-smart.
     </div>
 
 
@@ -209,13 +209,33 @@
 
     </div>
 
-</div>
+    <div class="card">
+        <h2>Sync Destinations</h2>
+        <label for="destLocation">Location</label>
+        <input id="destLocation" type="text" value="Seattle, WA" placeholder="e.g. Seattle, WA">
+        <button id="destSyncButton" onclick="syncDestinations()">Sync Destinations</button>
+        <div id="destSyncStatus" class="status"></div>
+    </div>
 
+    <div class="card">
+        <h2>Ask About Destinations</h2>
+        <label for="destQuery">Question</label>
+        <input id="destQuery" type="text" placeholder="e.g. outdoor viewpoint with a view" onkeydown="handleDestSearchKey(event)">
+        <button id="destSearchButton" onclick="searchDestinations()">Search</button>
+        <div id="destSearchStatus" class="status"></div>
+    </div>
+
+    <div class="card">
+        <h2>Destination Results</h2>
+        <div id="destResults">
+            <div class="empty">Enter a question above to search the destination knowledge base.</div>
+        </div>
+    </div>
+</div>
 
 <script>
 
 async function syncWeather() {
-
     const location = document
         .getElementById("location")
         .value
@@ -274,7 +294,6 @@ async function syncWeather() {
 
 
 async function searchWeather() {
-
     const query = document
         .getElementById("query")
         .value
@@ -331,9 +350,7 @@ async function searchWeather() {
         resultsContainer.innerHTML = data.results.map(result => `
 
             <div class="result">
-
                 <div class="result-header">
-
                     <div>
                         <div class="headline">
                             ${escapeHtml(
@@ -362,32 +379,131 @@ async function searchWeather() {
         `).join("");
 
     } catch (error) {
-
         status.textContent = error.message;
         status.className = "status error";
 
     } finally {
-
         button.disabled = false;
     }
 }
 
-
 function handleSearchKey(event) {
-
     if (event.key === "Enter") {
         searchWeather();
     }
 }
 
-
 function escapeHtml(value) {
-
     const div = document.createElement("div");
-
     div.textContent = value;
-
     return div.innerHTML;
+}
+
+async function syncDestinations() {
+    const location = document.getElementById("destLocation").value.trim();
+    const button = document.getElementById("destSyncButton");
+    const status = document.getElementById("destSyncStatus");
+
+    if (!location) {
+        status.textContent = "Please enter a location.";
+        return;
+    }
+
+    button.disabled = true;
+    status.className = "status";
+    status.textContent = "Syncing destinations...";
+
+    try {
+        const response = await fetch("/destinations/sync", {
+            method: "POST"
+            ,headers: {"Content-Type": "application/json"}
+            ,body: JSON.stringify({locations: [location], limit: 50})
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Sync failed.");
+        }
+
+        if (data.errors && data.errors.length > 0) {
+            status.textContent = `Synced ${data.synced} destination(s), but some errors occurred.`;
+            status.className = "status error";
+        } else {
+            status.textContent = `Successfully synced ${data.synced} destination(s), embedded ${data.embedded}.`;
+        }
+
+    } catch (error) {
+        status.textContent = error.message;
+        status.className = "status error";
+    } finally {
+        button.disabled = false;
+    }
+}
+
+
+async function searchDestinations() {
+    const query = document.getElementById("destQuery").value.trim();
+    const button = document.getElementById("destSearchButton");
+    const status = document.getElementById("destSearchStatus");
+    const resultsContainer = document.getElementById("destResults");
+
+    if (!query) {
+        status.textContent = "Please enter a question.";
+        return;
+    }
+
+    button.disabled = true;
+    status.className = "status";
+    status.textContent = "Searching...";
+    resultsContainer.innerHTML = "";
+
+    try {
+        const response = await fetch("/destinations/search", {
+            method: "POST"
+            ,headers: {"Content-Type": "application/json"}
+            ,body: JSON.stringify({query: query, top_k: 5})
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Search failed.");
+        }
+
+        status.textContent = `Found ${data.results.length} result(s).`;
+
+        if (data.results.length === 0) {
+            resultsContainer.innerHTML = `<div class="empty">No matching destination information found.</div>`;
+            return;
+        }
+
+        resultsContainer.innerHTML = data.results.map(result => `
+            <div class="result">
+                <div class="result-header">
+                    <div>
+                        <div class="headline">${escapeHtml(result.name || "Destination")}</div>
+                        <div class="location">${escapeHtml(result.location || "")}</div>
+                    </div>
+                    <div class="similarity">Similarity: ${result.similarity.toFixed(3)}</div>
+                </div>
+                <div class="chunk">${escapeHtml(result.chunk_text || "")}</div>
+            </div>
+        `).join("");
+
+    } catch (error) {
+        status.textContent = error.message;
+        status.className = "status error";
+    } finally {
+        button.disabled = false;
+    }
+}
+
+
+function handleDestSearchKey(event) {
+    if (event.key === "Enter") {
+        searchDestinations();
+    }
 }
 
 </script>

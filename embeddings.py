@@ -27,6 +27,7 @@ def get_embedding_model():
 
     return _embedding_model
 
+
 def chunk_text(
     text: str,
     chunk_size: int = CHUNK_SIZE,
@@ -54,7 +55,12 @@ def chunk_text(
             break
     return chunks
 
-def embed_unembedded_documents(get_connection):
+
+def embed_unembedded_documents(
+    get_connection
+    ,documents_table=WEATHER_DOCUMENTS_TABLE
+    ,embeddings_table=EMBEDDINGS_TABLE
+):
     # For incremental load of the embeddings
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -62,106 +68,70 @@ def embed_unembedded_documents(get_connection):
                 f"""
                 SELECT
                     d.id,
-                    d.location,
-                    d.source_type,
-                    d.headline,
                     d.narrative_text
-                FROM {WEATHER_DOCUMENTS_TABLE} d
+                FROM {documents_table} d
                 WHERE d.narrative_text IS NOT NULL
                   AND TRIM(d.narrative_text) <> ''
                   AND NOT EXISTS (
                       SELECT 1
-                      FROM {EMBEDDINGS_TABLE} e
+                      FROM {embeddings_table} e
                       WHERE e.document_id = d.id
-                  ) 
+                  )
                 ORDER BY d.synced_at DESC
                 """
             )
-            weather_documents = cur.fetchall()
+            documents = cur.fetchall()
 
-    if not weather_documents:
+    if not documents:
         return 0
 
-    # Chunk documents
     chunk_rows = []
 
-    for document in weather_documents:
+    for document in documents:
         document_id = document["id"]
         narrative_text = document["narrative_text"]
         chunks = chunk_text(narrative_text)
 
         for chunk_index, chunk in enumerate(chunks):
-            chunk_rows.append(
-                {
-                    "document_id": document_id,
-                    "chunk_index": chunk_index,
-                    "chunk_text": chunk,
-                }
-            )
+            chunk_rows.append({
+                "document_id": document_id
+                ,"chunk_index": chunk_index
+                ,"chunk_text": chunk
+            })
 
     if not chunk_rows:
         return 0
 
-    # Generate embeddings
     embedding_model = get_embedding_model()
     all_embeddings = []
 
     for i in range(0, len(chunk_rows), BATCH_SIZE):
         batch = chunk_rows[i:i + BATCH_SIZE]
-        texts = [
-            row["chunk_text"]
-            for row in batch
-        ]
-
-        vectors = embedding_model.encode(
-            texts,
-            show_progress_bar=False,
-        )
-
+        texts = [row["chunk_text"] for row in batch]
+        vectors = embedding_model.encode(texts, show_progress_bar=False)
         all_embeddings.extend(vectors.tolist())
 
-    # Prepare rows for insertion
     created_at = datetime.now(timezone.utc)
     insert_rows = []
 
-    for row, embedding in zip(
-        chunk_rows,
-        all_embeddings,
-    ):
+    for row, embedding in zip(chunk_rows, all_embeddings):
+        vector_value = "[" + ",".join(str(float(value)) for value in embedding) + "]"
 
-        vector_value = "[" + ",".join(
-            str(float(value))
-            for value in embedding
-        ) + "]"
+        insert_rows.append((
+            str(uuid.uuid4())
+            ,row["document_id"]
+            ,row["chunk_index"]
+            ,row["chunk_text"]
+            ,vector_value
+            ,EMBEDDING_MODEL_NAME
+            ,created_at
+        ))
 
-        insert_rows.append(
-            (
-                str(uuid.uuid4()),
-                row["document_id"],
-                row["chunk_index"],
-                row["chunk_text"],
-                vector_value,
-                EMBEDDING_MODEL_NAME,
-                created_at,
-            )
-        )
-
-    # Insert embeddings
     insert_query = f"""
-        INSERT INTO {EMBEDDINGS_TABLE} (
-            id,
-            document_id,
-            chunk_index,
-            chunk_text,
-            embedding,
-            model_name,
-            created_at
+        INSERT INTO {embeddings_table} (
+            id, document_id, chunk_index, chunk_text, embedding, model_name, created_at
         )
-        VALUES (
-            %s,%s,%s,%s,
-            %s::vector,
-            %s,%s
-        )
+        VALUES (%s,%s,%s,%s,%s::vector,%s,%s)
         ON CONFLICT (document_id, chunk_index) DO NOTHING
     """
 
@@ -171,10 +141,8 @@ def embed_unembedded_documents(get_connection):
         with conn.cursor() as cur:
             for i in range(0, len(insert_rows), 100):
                 batch = insert_rows[i:i + 100]
-                cur.executemany(
-                    insert_query,
-                    batch,
-                )
+                cur.executemany(insert_query, batch)
                 inserted_count += cur.rowcount
         conn.commit()
+
     return inserted_count
