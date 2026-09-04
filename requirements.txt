@@ -1,6 +1,6 @@
 flask>=2.3.0
 sentence-transformers
 psycopg[binary,pool]>=3.1.0
-databricks-sdk>=0.81.0
+databricks-sdk>=0.133.0
 requests
 fastmcp

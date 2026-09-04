@@ -1,12 +1,12 @@
-from datetime import datetime
-from fastmcp import FastMCP
-from weather_api import WeatherAPI
-
 import sys
 from pathlib import Path
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
+from datetime import datetime
+from fastmcp import FastMCP
+from weather_api import WeatherAPI
 from search import search_weather_documents
 from lakebase import get_connection
 

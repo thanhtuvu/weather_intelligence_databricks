@@ -5,7 +5,6 @@ import psycopg
 from psycopg.rows import dict_row
 from databricks.sdk import WorkspaceClient
 
-
 _w = WorkspaceClient()
 
 _PGHOST = os.environ["PGHOST"]
@@ -13,7 +12,6 @@ _PGPORT = os.environ.get("PGPORT", "5432")
 _PGDATABASE = os.environ.get("PGDATABASE", "databricks_postgres")
 _PGSSLMODE = os.environ.get("PGSSLMODE", "require")
 _PGUSER = os.environ["PGUSER"]
-
 _ENDPOINT = os.environ["LAKEBASE_ENDPOINT"]
 
 
