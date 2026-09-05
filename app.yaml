@@ -1,4 +1,4 @@
-command: ["python", "app.py"]
+command: ["python", "mcp_server/server.py"]
 env:
   - name: LAKEBASE_ENDPOINT
     value: "projects/weather-intelligence/branches/production/endpoints/primary"
