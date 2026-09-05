@@ -1,10 +1,10 @@
-command: ["python", "mcp_server/server.py"]
+command: ["python", "app.py"]
 env:
   - name: LAKEBASE_ENDPOINT
     value: "projects/weather-intelligence/branches/production/endpoints/primary"
-  # - name: PGHOST
-  #   value: "ep-polished-silence-d8t2cf3b.database.us-east-2.cloud.databricks.com"
-  # - name: PGUSER
-  #   value: "tuvu.uwyo@gmail.com"
-    # - name: GEOAPIFY_API_KEY
-      # value: '649d5b3a92ed4bbfa97f8c40906640f4'
+  - name: PGHOST
+    value: "ep-polished-silence-d8t2cf3b.database.us-east-2.cloud.databricks.com"
+  - name: PGUSER
+    value: "bdd38413-8353-41a4-93d5-fa5dabca7bd0"
+  - name: GEOAPIFY_API_KEY
+    valueFrom: geoapify-key

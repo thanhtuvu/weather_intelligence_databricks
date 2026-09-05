@@ -285,17 +285,12 @@ A production version should run synchronization on a schedule so that the knowle
 
 The application currently uses a direct Lakebase connection for search and embedding operations. The connection pool implementation was found to cause connection acquisition timeouts in the App environment and is therefore not currently used for these operations.
 
-## 8. Future Improvements
+## 8. API Key secrets setup
 
-Planned improvements include:
-
-1. Add an LLM-based RAG response layer.
-2. Improve document deduplication/upsert logic.
-3. Schedule automatic weather synchronization.
-4. Add retrieval filtering by `source_type`.
-5. Improve chunking strategy.
-6. Add citations/source references to generated answers.
-7. Improve retrieval evaluation and relevance testing.
+1. Run and enter the API keys from `secrets_setup.py`
+2. In `app.yaml` file: use `valueFrom` for each key name
+3. In app's `Resource` tab, add `Secret` as setup in the file.
+4. Note: PGUSER = DATABRICKS_CLIENT_ID (found in app env)
 
 ##9. Grant access
 GRANT ALL PRIVILEGES ON TABLE weather_embeddings TO "dbf9f891-2ab9-499e-8376-2867b405bb96";
