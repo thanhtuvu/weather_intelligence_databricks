@@ -7,7 +7,7 @@ sys.path.insert(0, str(ROOT_DIR))
 from datetime import datetime
 from fastmcp import FastMCP
 from weather_api import WeatherAPI
-from search import search_weather_documents
+from search import search_weather_documents, search_destination_documents
 from lakebase import get_connection
 
 mcp = FastMCP("Weather MCP Server")
@@ -107,6 +107,19 @@ def search_weather(query: str, top_k: int = 5) -> list:
         top_k=top_k,
     )
 
+@mcp.tool()
+def search_destinations(query: str, top_k: int = 5) -> list:
+    """Search stored destination/attraction documents using semantic similarity."""
+
+    if top_k < 1 or top_k > 20:
+        raise ValueError("top_k must be between 1 and 20")
+
+    return search_destination_documents(
+        query=query
+        ,get_connection=get_connection
+        ,top_k=top_k
+    )
+    
 @mcp.tool()
 def predict_umbrella_needed(location: str, date: str) -> dict:
     """
