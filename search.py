@@ -9,11 +9,6 @@ def search_documents(
     ,label_column="headline"
     ,top_k=5
 ):
-    """
-    Generic semantic search over any documents/embeddings table pair that
-    follows the weather/destination convention: documents.id -> embeddings.document_id,
-    documents.location, chunks derived from documents.narrative_text.
-    """
 
     query_embedding = get_embedding_model().encode(query.strip())
     vector = "[" + ",".join(str(float(value)) for value in query_embedding) + "]"
@@ -48,8 +43,6 @@ def search_documents(
 
 
 def search_weather_documents(query, get_connection, top_k=5):
-    """Preserves the exact call signature and return shape app.py/server.py already use."""
-
     return search_documents(
         query
         ,get_connection
