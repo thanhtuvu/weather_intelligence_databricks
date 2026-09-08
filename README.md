@@ -272,8 +272,8 @@ Future improvements could include filtering by:
 - forecast period
 
 ### Document deduplication
-
-The current ingestion flow still needs stronger document-level deduplication/upsert behavior based on a stable source identifier.
+Need to have docstring for each tool. 
+FastMCP surfaces the docstring as the tool's description to Agent Bricks — it's literally how the agent decides when to reach for a tool
 
 ### Scheduling
 
