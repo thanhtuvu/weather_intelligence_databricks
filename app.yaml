@@ -5,6 +5,8 @@ env:
   - name: PGHOST
     value: "ep-polished-silence-d8t2cf3b.database.us-east-2.cloud.databricks.com"
   - name: PGUSER
-    value: "bdd38413-8353-41a4-93d5-fa5dabca7bd0"
+    value: "dbf9f891-2ab9-499e-8376-2867b405bb96" 
   - name: GEOAPIFY_API_KEY
     valueFrom: geoapify-key
+  - name: ORS_API_KEY
+    valueFrom: ors-key

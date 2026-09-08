@@ -1,7 +1,6 @@
 import hashlib
 import json
 from datetime import datetime, timezone
-
 import lakebase
 from destination_api import DestinationAPI
 

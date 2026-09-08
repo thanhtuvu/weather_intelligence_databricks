@@ -51,12 +51,7 @@ class RoutingAPI:
                 "An error occurred while contacting OpenRouteService."
             ) from e
 
-    def get_route(self, origin: str, destination: str, mode: str = "walking") -> dict:
-        """
-        Distance/duration between two locations.
-        `origin`/`destination` accept place names or "lat,lon" strings.
-        """
-
+    def get_travel_time(self, origin: str, destination: str, mode: str = "walking") -> dict:
         profile = self._resolve_profile(mode)
         origin_lat, origin_lon = resolve_location_input(origin)
         dest_lat, dest_lon = resolve_location_input(destination)
@@ -71,33 +66,21 @@ class RoutingAPI:
         result = self._post(f"/v2/directions/{profile}", body)
         route = result["routes"][0]["summary"]
 
+        distance_meters = route["distance"]
+        duration_seconds = route["duration"]
+
         return {
             "origin": origin
             ,"destination": destination
             ,"mode": mode
-            ,"distance_meters": route["distance"]
-            ,"duration_seconds": route["duration"]
-        }
-
-    def get_travel_time(self, origin: str, destination: str, mode: str = "walking") -> dict:
-        """Convenience wrapper: just the numbers, no route geometry."""
-
-        route = self.get_route(origin, destination, mode)
-
-        return {
-            "origin": route["origin"]
-            ,"destination": route["destination"]
-            ,"mode": route["mode"]
-            ,"distance_km": round(route["distance_meters"] / 1000, 2)
-            ,"duration_minutes": round(route["duration_seconds"] / 60, 1)
+            ,"distance_meters": distance_meters
+            ,"duration_seconds": duration_seconds
+            ,"distance_km": round(distance_meters / 1000, 2)
+            ,"duration_minutes": round(duration_seconds / 60, 1)
         }
 
     def get_travel_time_matrix(self, locations: list[str], mode: str = "walking") -> dict:
-        """
-        Pairwise travel time/distance across every location in the list.
-        This is the one the agent should reach for to sanity-check whether
-        a day's activities are geographically realistic before committing to them.
-        """
+        """Returns a matrix of travel times between all pairs of locations."""
 
         profile = self._resolve_profile(mode)
         coords = [resolve_location_input(loc) for loc in locations]

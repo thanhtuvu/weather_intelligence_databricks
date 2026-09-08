@@ -14,3 +14,10 @@ w.secrets.put_secret(
     key="geoapify-key",
     string_value=getpass.getpass("Paste your geoapify API key: ")
 )
+
+w.secrets.create_scope(scope="ors")
+w.secrets.put_secret(
+    scope="ors",
+    key="ors-key",
+    string_value=getpass.getpass("Paste your OpenRouteServer API key: ")
+)
