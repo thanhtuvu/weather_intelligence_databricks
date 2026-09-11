@@ -1,7 +1,7 @@
 import hashlib
 import json
 from datetime import datetime, timezone
-import lakebase
+
 from destination_api import DestinationAPI
 
 CATEGORY_MAP = {
@@ -14,6 +14,9 @@ CATEGORY_MAP = {
     ,"catering": ("food_drink", "indoor")
     ,"commercial.shopping_mall": ("shopping", "indoor")
 }
+
+UNNAMED_PLACEHOLDER = "Unnamed"
+
 
 def categorize(categories: list[str]) -> tuple[str, str]:
     matches = [
@@ -50,13 +53,12 @@ def normalize_place(feature: dict, detail: dict | None, location: str) -> dict:
     return {
         "id": document_id
         ,"location": location
-        ,"name": props.get("name") or "Unnamed"
+        ,"name": props.get("name") or UNNAMED_PLACEHOLDER
         ,"category": category
         ,"kinds": ",".join(categories)
         ,"indoor_outdoor": indoor_outdoor
         ,"latitude": props.get("lat")
         ,"longitude": props.get("lon")
-        ,"rating": None
         ,"address": props.get("address_line2") or props.get("formatted", "")
         ,"narrative_text": narrative_text
         ,"payload": {"feature": feature, "detail": detail}
@@ -84,13 +86,20 @@ def fetch_destinations(
     for feature in features:
         place_id = feature.get("properties", {}).get("place_id")
         detail = client.get_place_details(place_id) if (fetch_details and place_id) else None
-        documents.append(normalize_place(feature, detail, location))
+        doc = normalize_place(feature, detail, location)
 
+        if doc["name"] == UNNAMED_PLACEHOLDER:
+            continue
+
+        documents.append(doc)
+        
     return documents
 
 
 def upsert_documents(documents: list[dict]) -> int:
     """Upsert normalized destination documents into Lakebase."""
+
+    import lakebase
 
     if not documents:
         return 0
@@ -98,7 +107,7 @@ def upsert_documents(documents: list[dict]) -> int:
     sql = """
         INSERT INTO destination_documents (
             id, location, name, category, kinds, indoor_outdoor,
-            latitude, longitude, rating, address, narrative_text,
+            latitude, longitude, address, narrative_text,
             payload, synced_at
         )
         VALUES (
@@ -111,7 +120,6 @@ def upsert_documents(documents: list[dict]) -> int:
             category = EXCLUDED.category,
             kinds = EXCLUDED.kinds,
             indoor_outdoor = EXCLUDED.indoor_outdoor,
-            rating = EXCLUDED.rating,
             address = EXCLUDED.address,
             narrative_text = EXCLUDED.narrative_text,
             payload = EXCLUDED.payload,
@@ -122,7 +130,7 @@ def upsert_documents(documents: list[dict]) -> int:
         (
             doc["id"], doc["location"], doc["name"], doc["category"]
             ,doc["kinds"], doc["indoor_outdoor"], doc["latitude"], doc["longitude"]
-            ,doc["rating"], doc["address"], doc["narrative_text"]
+            ,doc["address"], doc["narrative_text"]
             ,json.dumps(doc["payload"]), doc["synced_at"]
         )
         for doc in documents
