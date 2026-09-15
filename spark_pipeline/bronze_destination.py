@@ -128,7 +128,11 @@ else:
         .select("place_id")
         .collect()
     )
-    place_ids = [row["place_id"] for row in rows_needing_detail if row["place_id"] is not None]
+    # A place_id can legitimately appear in Bronze more than once (the same
+    # real place found under two different tracked locations whose search
+    # radii overlap) — dedupe here so we don't fetch its detail twice and
+    # don't hand the MERGE below two source rows for one place_id.
+    place_ids = list({row["place_id"] for row in rows_needing_detail if row["place_id"] is not None})
 
     if place_ids:
         print(f"Fetching details for {len(place_ids)} places — one API call per place, expect it to take a bit")
