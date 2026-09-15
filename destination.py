@@ -111,7 +111,7 @@ def upsert_documents(documents: list[dict]) -> int:
             payload, synced_at
         )
         VALUES (
-            %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s,
             %s, %s, %s, %s, %s,
             %s::jsonb, %s
         )

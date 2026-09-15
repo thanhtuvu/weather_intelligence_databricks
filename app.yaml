@@ -10,3 +10,7 @@ env:
     valueFrom: geoapify-key
   - name: ORS_API_KEY
     valueFrom: ors-key
+  - name: DATABRICKS_SQL_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  - name: UC_TABLE_NAME
+    valueFrom: table

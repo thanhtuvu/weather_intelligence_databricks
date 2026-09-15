@@ -70,10 +70,10 @@ silver_df = (
     .filter(f"name != '{UNNAMED_PLACEHOLDER}'")
 )
 
-#Write to silver schema:
+#Write to silver schema `destinations_clean` table:
 silver_df.write.mode("overwrite").saveAsTable(SILVER_TABLE)
 
-#Write to Lakebase table:
+#Write to the Lakebase `destination_documents` table:
 now = datetime.now(timezone.utc)
 rows = silver_df.collect()
 documents = [

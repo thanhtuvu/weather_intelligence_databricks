@@ -8,6 +8,9 @@ from datetime import datetime
 from fastmcp import FastMCP
 from weather_api import WeatherAPI
 from search import search_weather_documents, search_destination_documents
+from destination import fetch_destinations, upsert_documents
+from embeddings import embed_unembedded_documents
+from tracked_location import add_tracked_location
 from routing import RoutingAPI
 from itinerary import (
     ItineraryItemInput
@@ -138,6 +141,60 @@ def search_destinations(query: str, top_k: int = 5) -> list:
         result["item_type"] = result.pop("category")
 
     return results
+
+
+@mcp.tool()
+def ingest_new_destination_city(location: str) -> dict:
+    """
+    Fetch and store destination data after search_destinations comes back empty
+    for the location the user asked about — then call search_destinations again 
+    with the same query afterward. This does a live fetch for one city
+    it's a fallback, not a first move.
+    """
+    documents = fetch_destinations(
+        location=location
+        ,api_key=os.environ["GEOAPIFY_API_KEY"]
+    )
+ 
+    if not documents:
+        return {
+            "location": location
+            ,"documents_ingested": 0
+            ,"chunks_embedded": 0
+            ,"added_to_tracked_locations": False
+            ,"message": (
+                f"No destinations found for '{location}'. Try a more "
+                "specific or differently spelled location."
+            )
+        }
+ 
+    upsert_documents(documents)
+ 
+    embedded = embed_unembedded_documents(
+        get_connection
+        ,documents_table="destination_documents"
+        ,embeddings_table="destination_embeddings"
+    )
+ 
+    """adding new location to bronze scheme `tracked_location` table"""
+    tracked = True
+    try:
+        add_tracked_location(location)
+    except Exception as e:
+        tracked = False
+        print(f"Could not add '{location}' to tracked_locations: {e}")
+ 
+    return {
+        "location": location
+        ,"documents_ingested": len(documents)
+        ,"chunks_embedded": embedded
+        ,"added_to_tracked_locations": tracked
+        ,"message": (
+            f"Ingested {len(documents)} destinations for '{location}'. "
+            "Call search_destinations again now."
+        )
+    }
+ 
 
 @mcp.tool()
 def get_travel_times(locations: list[str], mode: str = "walking") -> list:
