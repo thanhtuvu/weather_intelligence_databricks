@@ -84,7 +84,24 @@ else:
 
     if all_rows:
         updates_df = spark.createDataFrame(all_rows)
-        updates_df.createOrReplaceTempView("bronze_updates")
+
+        # Geoapify can return the same real place twice in one call when it
+        # matches more than one requested category — same place_id, same
+        # location, appearing as two separate rows here. MERGE fails if the
+        # source has 2+ rows matching the same target row, so collapse those
+        # first. Rows with place_id IS NULL are left untouched on purpose:
+        # NULL never matches another NULL in the MERGE's ON clause below, so
+        # they can't cause this error, and deduping them could wrongly
+        # discard genuinely distinct places that simply lack a place_id.
+        with_id = updates_df.where("place_id IS NOT NULL").dropDuplicates(["place_id", "location"])
+        without_id = updates_df.where("place_id IS NULL")
+        deduped_df = with_id.unionByName(without_id)
+
+        dropped = updates_df.count() - deduped_df.count()
+        if dropped:
+            print(f"Dropped {dropped} duplicate place(s) returned by Geoapify for the same location")
+
+        deduped_df.createOrReplaceTempView("bronze_updates")
 
         spark.sql(f"""
             MERGE INTO {CATALOG}.{SCHEMA}.{TABLE} AS target
@@ -101,7 +118,7 @@ else:
                 VALUES (source.place_id, source.location, source.raw_feature, source.fetched_at, source.source)
         """)
 
-        print(f"Merged {len(all_rows)} rows into {CATALOG}.{SCHEMA}.{TABLE}")
+        print(f"Merged {deduped_df.count()} rows into {CATALOG}.{SCHEMA}.{TABLE}")
 
     # --- 4. Backfill raw_detail for any row still missing it, across all tracked locations ---
     location_list_sql = ",".join(f"'{loc}'" for loc in locations)
