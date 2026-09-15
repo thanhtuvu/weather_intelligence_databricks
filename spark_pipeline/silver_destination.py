@@ -2,10 +2,6 @@ from pathlib import Path
 import sys
 import json
 import os
-# from pprint import pprint
-# os.environ["PGHOST"] = "ep-polished-silence-d8t2cf3b.database.us-east-2.cloud.databricks.com"
-# os.environ["LAKEBASE_ENDPOINT"] = "projects/weather-intelligence/branches/production/endpoints/primary"
-# os.environ["PGUSER"] ="tuvu.uwyo@gmail.com"
 
 REPO_ROOT = Path(
     "/Workspace/Users/tuvu.uwyo@gmail.com/weather_intelligence_databricks"
