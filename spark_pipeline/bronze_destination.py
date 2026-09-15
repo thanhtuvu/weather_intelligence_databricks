@@ -59,7 +59,7 @@ else:
     #     MERGE instead of append: a scheduled job re-runs the same tracked cities
     #     repeatedly, so append would pile up duplicate rows every run. MERGE
     #     refreshes existing rows and only inserts truly new ones.
-    client = DestinationAPI(api_key=dbutils.secrets.get(scope="weather_intelligence", key="geoapify_api_key"))
+    client = DestinationAPI(api_key=dbutils.secrets.get(scope="geoapify", key="geoapify-key"))
     now = datetime.now(timezone.utc)
 
     all_rows = []
