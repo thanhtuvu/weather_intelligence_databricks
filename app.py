@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify, render_template
 import os
+import hmac
 import psycopg
 from psycopg_pool import ConnectionPool
 from databricks import sdk
+from datetime import datetime
 
 from weather import WeatherClient, upsert_documents as upsert_weather_documents
 from destination import fetch_destinations, upsert_documents as upsert_destination_documents
@@ -228,6 +230,48 @@ def search_destinations():
     )
 
     return jsonify({"query": query, "results": results})
+
+# --------------------------------------------------
+# Silver sync (called by the Spark job — see spark_pipeline/silver_destination.py)
+# --------------------------------------------------
+
+@app.route("/silver/sync", methods=["POST"])
+def sync_silver():
+    token = request.headers.get("X-Sync-Token", "")
+    expected = os.environ.get("SILVER_SYNC_TOKEN", "")
+
+    if not expected or not hmac.compare_digest(token, expected):
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    documents = data.get("documents")
+
+    if not isinstance(documents, list) or not documents:
+        return jsonify({"error": "documents must be a non-empty list"}), 400
+
+    for doc in documents:
+        if isinstance(doc.get("synced_at"), str):
+            doc["synced_at"] = datetime.fromisoformat(doc["synced_at"])
+
+    synced = upsert_destination_documents(documents)
+
+    embedded = 0
+    errors = []
+    try:
+        embedded = embed_unembedded_documents(
+            lakebase.get_connection
+            ,documents_table="destination_documents"
+            ,embeddings_table="destination_embeddings"
+        )
+    except Exception as exc:
+        errors.append({"embedding": str(exc)})
+
+    return jsonify({
+        "synced": synced
+        ,"embedded": embedded
+        ,"documents_received": len(documents)
+        ,"errors": errors
+    })
 
 # --------------------------------------------------
 # Run

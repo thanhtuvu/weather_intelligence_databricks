@@ -2,17 +2,14 @@ from pathlib import Path
 import sys
 import json
 import os
-# from pprint import pprint
-# os.environ["PGHOST"] = "ep-polished-silence-d8t2cf3b.database.us-east-2.cloud.databricks.com"
-# os.environ["LAKEBASE_ENDPOINT"] = "projects/weather-intelligence/branches/production/endpoints/primary"
-# os.environ["PGUSER"] ="tuvu.uwyo@gmail.com"
+import requests
 
 REPO_ROOT = Path(
     "/Workspace/Users/tuvu.uwyo@gmail.com/weather_intelligence_databricks"
 )
 sys.path.insert(0, str(REPO_ROOT))
 
-from destination import normalize_place, upsert_documents, UNNAMED_PLACEHOLDER
+from destination import normalize_place, UNNAMED_PLACEHOLDER
 from datetime import datetime, timezone
 import json
 from pyspark.sql.functions import udf
@@ -22,10 +19,10 @@ CATALOG = "weather_intelligence"
 BRONZE_TABLE = f"{CATALOG}.bronze.destinations_raw"
 SILVER_TABLE = f"{CATALOG}.silver.destinations_clean"
 SCHEMA = "silver"
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
+APP_SYNC_URL = "https://weather-intelligence-app-7474652422931165.aws.databricksapps.com/silver/sync"
 
 # Matches destination_documents' shape exactly (minus synced_at)
-
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.{SCHEMA}")
 silver_schema = StructType([
     StructField("id", StringType(), False)
     ,StructField("location", StringType(), False)
@@ -70,10 +67,12 @@ silver_df = (
     .filter(f"name != '{UNNAMED_PLACEHOLDER}'")
 )
 
-#Write to silver schema:
+#Write to silver schema `destinations_clean` table:
 silver_df.write.mode("overwrite").saveAsTable(SILVER_TABLE)
 
-#Write to Lakebase table:
+# --- Hand off the Lakebase write + embedding step to the Flask/MCP app so Silver's job is just to hand it the
+# cleaned rows over HTTP instead of touching Lakebase directly.
+
 now = datetime.now(timezone.utc)
 rows = silver_df.collect()
 documents = [
@@ -88,20 +87,23 @@ documents = [
         ,"longitude": row["longitude"]
         ,"address": row["address"]
         ,"narrative_text": row["narrative_text"]
-        ,"payload": json.loads(row["payload"]) 
-        ,"synced_at": now
+        ,"payload": json.loads(row["payload"])
+        ,"synced_at": now.isoformat()  # datetime isn't JSON-serializable — sent as ISO text, parsed back on the other end
     }
     for row in rows
 ]
 
-upsert_documents(documents)
+sync_token = dbutils.secrets.get(scope="geoapify", key="silver-sync-token")
 
-#Write to Embedding table:
-from embeddings import embed_unembedded_documents
-import lakebase
-
-embedded = embed_unembedded_documents(
-    lakebase.get_connection
-    ,documents_table="destination_documents"
-    ,embeddings_table="destination_embeddings"
+response = requests.post(
+    APP_SYNC_URL
+    ,json={"documents": documents}
+    ,headers={"X-Sync-Token": sync_token}
+    ,timeout=300  # generous on purpose — the app embeds the documents server-side before responding, which can take a while for a few hundred rows
 )
+
+if not response.ok:
+    raise RuntimeError(f"Silver sync to app failed ({response.status_code}): {response.text}")
+
+result = response.json()
+print(f"Silver Delta write: {len(rows)} rows. App sync result: {result}")

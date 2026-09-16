@@ -314,3 +314,5 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO "dbf
    Without it, that's a sequential scan + sort every time you render an itinerary. With it, Postgres jumps straight to the matching rows already in the right order — no separate sort step needed since the index itself is stored in (itinerary_id, day_number, sequence_order) order.
 
    Column order matters: itinerary_id first because that's the equality filter (WHERE), the rest after because that's the sort order you need per itinerary.
+
+4. fetched_at > last_processed_at: bronze vs. silver layer
