@@ -14,3 +14,5 @@ env:
     valueFrom: sql-warehouse
   - name: UC_TABLE_NAME
     valueFrom: table
+  - name: SILVER_SYNC_TOKEN
+    valueFrom: silver-sync-token

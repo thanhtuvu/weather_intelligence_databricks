@@ -4,7 +4,7 @@ So never commit the resulting secret value anywhere.
 """
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import workspace
-import getpass
+import getpass, secrets
 
 w = WorkspaceClient()
 
@@ -21,3 +21,16 @@ w.secrets.put_secret(
     key="ors-key",
     string_value=getpass.getpass("Paste your OpenRouteServer API key: ")
 )
+
+
+# Shared secret between the Silver Spark job and the app's /silver/sync endpoint.
+# It is is to prove the caller is the Spark job and not some random request hitting the endpoint.
+
+w.secrets.put_secret(
+    scope="geoapify",
+    key="silver-sync-token",
+    string_value=secrets.token_urlsafe(32)
+)
+ 
+print("Done. Secrets stored")
+
