@@ -234,8 +234,14 @@ def search_destinations():
 # --------------------------------------------------
 # Silver sync (called by the Spark job — see spark_pipeline/silver_destination.py)
 # --------------------------------------------------
+# psycopg can't safely run inside the Spark driver process (SIGABRT — a
+# native libpq conflict with the driver's own already-loaded native libs,
+# JVM/py4j included). Silver does the Spark-native work (Bronze -> Delta)
+# and hands the cleaned rows here over HTTP; this app is a plain Python
+# container, so psycopg + sentence-transformers run the same way they
+# already do for every other route in this file.
 
-@app.route("/silver/sync", methods=["POST"])
+@app.route("/api/silver/sync", methods=["POST"])
 def sync_silver():
     token = request.headers.get("X-Sync-Token", "")
     expected = os.environ.get("SILVER_SYNC_TOKEN", "")
@@ -249,6 +255,9 @@ def sync_silver():
     if not isinstance(documents, list) or not documents:
         return jsonify({"error": "documents must be a non-empty list"}), 400
 
+    # synced_at travels as an ISO string over JSON — turn it back into a
+    # real datetime before it reaches upsert_documents(), same type it
+    # always had when this ran in-process.
     for doc in documents:
         if isinstance(doc.get("synced_at"), str):
             doc["synced_at"] = datetime.fromisoformat(doc["synced_at"])
