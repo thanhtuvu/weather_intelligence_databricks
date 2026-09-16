@@ -246,6 +246,11 @@ def sync_silver():
     token = request.headers.get("X-Sync-Token", "")
     expected = os.environ.get("SILVER_SYNC_TOKEN", "")
 
+    if not expected:
+        print("SILVER_SYNC_TOKEN is not set on this app — check the Secret resource binding and redeploy.")
+    elif not hmac.compare_digest(token, expected):
+        print(f"SILVER_SYNC_TOKEN is set (len={len(expected)}) but did not match the incoming X-Sync-Token (len={len(token)}).")
+
     if not expected or not hmac.compare_digest(token, expected):
         return jsonify({"error": "unauthorized"}), 401
 
