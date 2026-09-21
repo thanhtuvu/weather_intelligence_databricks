@@ -64,7 +64,7 @@ Both branches carry their own copy of the shared modules (`destination.py`, `lak
 - **Routing** — travel time/distance between planned stops via OpenRouteService
 - **Itinerary management** — create, extend, list, and update saved trip itineraries
 - **Automated data pipeline** — a scheduled Databricks Job (Bronze → Silver, Spark) keeps a configurable list of tracked cities' destination data fresh on its own
-- Confirmed working end-to-end through Agent Bricks: a single trip-planning conversation chaining weather, search, routing, and itinerary saving together (***see [`screenshot`](./screenshot)***)
+- Confirmed working end-to-end through Agent Bricks: a single trip-planning conversation chaining weather, search and itinerary saving together (***see [`screenshot_agent`](./screenshot/agent_bricks_trip_planner_sample)***)
 
 ## Tech stack
 
